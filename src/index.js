@@ -3,9 +3,11 @@ import {execSync} from "child_process";
 const DEFAULT_OPTIONS = {
   commitDefaultValue: "unknown",
   tagDefaultValue: "unknown",
+  branchDefaultValue: "unknown",
 
   commitConstantName: "GIT_COMMIT",
   tagConstantName: "GIT_TAG",
+  branchConstantName: "GIT_BRANCH",
 
   showDirty: false,
 
@@ -13,11 +15,12 @@ const DEFAULT_OPTIONS = {
   tagCommitLength: 0,
 };
 
-export default makePlugin({getCommit, getTag});
+export default makePlugin({getCommit, getTag, getBranch});
 
-export function makePlugin({getCommit, getTag}) {
+export function makePlugin({getCommit, getTag, getBranch}) {
   let commit;
   let tag;
+  let branch;
   let pluginOptions;
 
   return ({types: t}) => {
@@ -37,6 +40,11 @@ export function makePlugin({getCommit, getTag}) {
           if (!tag) {
             tag = pluginOptions.tagDefaultValue;
           }
+
+          branch = getBranch(pluginOptions)
+          if (!branch) {
+            branch = pluginOptions.branchDefaultValue;
+          }
         },
 
         ReferencedIdentifier(path) {
@@ -47,6 +55,11 @@ export function makePlugin({getCommit, getTag}) {
 
           if (path.node.name === pluginOptions.tagConstantName) {
             path.replaceWith(t.stringLiteral(tag));
+            return;
+          }
+
+          if (path.node.name === pluginOptions.branchConstantName) {
+            path.replaceWith(t.stringLiteral(branch));
             return;
           }
         },
@@ -67,6 +80,15 @@ function getTag(opts) {
   try {
     let cmd = ["git describe", `--abbrev=${opts.tagCommitLength}`, opts.showDirty ? "--dirty" : ""];
     return execSync(cmd.join(" "), {stdio: ["ignore", "pipe", "ignore"]}).toString().trim();
+  } catch (e) {
+    return null;
+  }
+}
+
+function getBranch(opts) {
+  try {
+    let cmd = ["git rev-parse --abbrev-ref HEAD"];
+    return execSync(cmd.join(" "), { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
   } catch (e) {
     return null;
   }
